@@ -1,0 +1,6 @@
+Flask
+requests
+beautifulsoup4
+APScheduler
+python-telegram-bot
+configparser

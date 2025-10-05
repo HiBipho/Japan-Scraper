@@ -1,0 +1,9 @@
+# Database
+*.db
+
+# Log files
+*.log
+
+# Python virtual environment
+venv/
+

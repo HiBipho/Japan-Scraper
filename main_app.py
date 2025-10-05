@@ -2,30 +2,26 @@ from flask import Flask, render_template, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
-import configparser
+import os
+import telegram
 
 from scraper_logic import DatabaseManager, MercariScraper, YahooAuctionScraper
 
-# --- Konfigurasi ---
-config = configparser.ConfigParser()
-config.read('config.ini')
-TELEGRAM_TOKEN = config['Telegram']['Token']
-TELEGRAM_CHAT_ID = config['Telegram']['ChatID']
-SERVER_HOST = config['Server']['Host']
-SERVER_PORT = int(config['Server']['Port'])
+# --- Konfigurasi dari Variabel Lingkungan ---
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 app = Flask(__name__)
 db_manager = DatabaseManager()
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
 def send_telegram_notification(new_items_list):
-    # ... (Tidak ada perubahan di fungsi ini)
-    if not new_items_list or "TOKEN_API" in TELEGRAM_TOKEN: return
+    """Mengirim notifikasi ke Telegram tentang item baru."""
+    if not new_items_list or not TELEGRAM_TOKEN: return
     try:
-        import telegram
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
         message_text = f"🔥 Ditemukan {len(new_items_list)} item baru!\n\n"
-        for item in new_items_list[:10]:
+        for item in new_items_list[:10]: # Batasi 10 item agar pesan tidak terlalu panjang
             title = item['title'][:50] + '...' if len(item['title']) > 50 else item['title']
             message_text += f"*{item['source']}*\n[{title}]({item['url']})\nHarga: {item['price']}\n\n"
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
@@ -34,7 +30,7 @@ def send_telegram_notification(new_items_list):
         logging.error(f"Gagal mengirim notifikasi Telegram: {e}")
 
 def run_master_scrape():
-    # ... (Tidak ada perubahan di fungsi ini)
+    """Menjalankan scraper untuk semua kata kunci di DB secara paralel."""
     logging.info("--- Memulai Sesi Scraping Otomatis ---")
     keywords = db_manager.get_keywords()
     if not keywords:
@@ -61,11 +57,17 @@ def run_master_scrape():
         logging.info("Scraping selesai. Tidak ada item baru.")
     logging.info("--- Sesi Scraping Otomatis Selesai ---")
 
+# --- Rute-Rute Aplikasi Web (API & HALAMAN UTAMA) ---
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    return render_template('index.html')
 
 @app.route('/api/listings', methods=['GET'])
-def get_listings(): return jsonify(db_manager.get_listings())
+def get_listings():
+    sort_by = request.args.get('sort_by', 'date')
+    order = request.args.get('order', 'desc')
+    listings = db_manager.get_listings(sort_by=sort_by, order=order)
+    return jsonify(listings)
 
 @app.route('/api/keywords', methods=['GET', 'POST'])
 def manage_keywords():
@@ -77,7 +79,6 @@ def manage_keywords():
         return jsonify({'status': 'error', 'message': 'Keyword cannot be empty'}), 400
     return jsonify(db_manager.get_keywords())
 
-# --- [PERBAIKAN] Rute delete diubah untuk memanggil fungsi baru ---
 @app.route('/api/keywords/delete', methods=['POST'])
 def delete_keyword():
     keyword = request.json.get('keyword')
@@ -95,4 +96,4 @@ if __name__ == '__main__':
     scheduler.add_job(run_master_scrape, 'date')
     scheduler.add_job(run_master_scrape, 'interval', hours=1, id='hourly_scrape')
     scheduler.start()
-    app.run(host=SERVER_HOST, port=SERVER_PORT, debug=False)
+    app.run()

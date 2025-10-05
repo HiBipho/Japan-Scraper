@@ -1,9 +1,14 @@
-# Database
+# Database & Logs
 *.db
-
-# Log files
 *.log
 
-# Python virtual environment
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual Environment
 venv/
 
+# Test/Output files
+output.html
+test_*.py

@@ -25,6 +25,8 @@
         .keyword-tag { display: inline-flex; align-items: center; background-color: #333; padding: 5px 10px; border-radius: 15px; margin: 5px 0; }
         .delete-kw { cursor: pointer; margin-left: 8px; color: #ff5555; font-weight: bold; }
         #status { font-style: italic; color: #999; }
+        .sort-controls { margin-top: 20px; margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+        .sort-controls select { padding: 8px; border-radius: 5px; background-color: #333; color: var(--text-color); border: 1px solid var(--border-color); font-size: 1em; }
     </style>
 </head>
 <body>
@@ -39,6 +41,17 @@
         </div>
         <div id="keywordsList" class="keywords"></div>
         <h2>Scraped Listings (<span id="itemCount">0</span>)</h2>
+        <div class="sort-controls">
+            <label for="sort_by">Sort By:</label>
+            <select id="sort_by" onchange="fetchListings()">
+                <option value="date">Date</option>
+                <option value="price">Price</option>
+            </select>
+            <select id="order" onchange="fetchListings()">
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+            </select>
+        </div>
         <table id="listingsTable">
             <thead><tr><th>Source</th><th>Title</th><th>Price</th><th>Scraped At</th></tr></thead>
             <tbody></tbody>
@@ -46,9 +59,10 @@
     </div>
     <script>
         async function fetchListings() {
-            // ... (Tidak ada perubahan di fungsi ini)
+            const sortBy = document.getElementById('sort_by').value;
+            const order = document.getElementById('order').value;
             try {
-                const response = await fetch('/api/listings');
+                const response = await fetch(`/api/listings?sort_by=${sortBy}&order=${order}`);
                 const data = await response.json();
                 const tbody = document.querySelector('#listingsTable tbody');
                 tbody.innerHTML = '';
@@ -56,38 +70,30 @@
                 data.forEach(item => {
                     const row = `<tr>
                             <td><span class="source-tag source-${item.source.toLowerCase().replace(' ', '-')}">${item.source}</span></td>
-                            <td><a href="${item.url}" target="_blank">${item.title}</a></td>
+                            <td><a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a></td>
                             <td>${item.price}</td>
                             <td>${new Date(item.scraped_at).toLocaleString()}</td>
                         </tr>`;
                     tbody.innerHTML += row;
                 });
-            } catch (error) {
-                console.error('Failed to fetch listings:', error);
-                document.getElementById('status').textContent = 'Error loading data.';
-            }
+            } catch (error) { console.error('Failed to fetch listings:', error); }
         }
         async function fetchKeywords() {
-            // ... (Tidak ada perubahan di fungsi ini)
             try {
                 const response = await fetch('/api/keywords');
                 const keywords = await response.json();
                 const listDiv = document.getElementById('keywordsList');
                 listDiv.innerHTML = '<strong>Current:</strong> ';
-                if (keywords.length === 0) {
-                     listDiv.innerHTML += '<span>No keywords defined.</span>';
-                } else {
+                if (keywords.length === 0) { listDiv.innerHTML += '<span>No keywords defined.</span>'; }
+                else {
                     keywords.forEach(kw => {
                         const tag = `<div class="keyword-tag">${kw}<span class="delete-kw" onclick="deleteKeyword('${kw}')">&times;</span></div>`;
                         listDiv.innerHTML += tag;
                     });
                 }
-            } catch (error) {
-                console.error('Failed to fetch keywords:', error);
-            }
+            } catch (error) { console.error('Failed to fetch keywords:', error); }
         }
         async function addKeyword() {
-            // ... (Tidak ada perubahan di fungsi ini)
             const input = document.getElementById('newKeyword');
             const keyword = input.value.trim();
             if (!keyword) return;
@@ -96,23 +102,20 @@
             fetchKeywords();
             updateStatus(`Keyword '${keyword}' added.`);
         }
-        // --- [PERBAIKAN] Fungsi delete diubah untuk me-refresh listing ---
         async function deleteKeyword(keyword) {
             if (!confirm(`Are you sure you want to delete "${keyword}" and its listings?`)) return;
             await fetch('/api/keywords/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword }) });
             updateStatus(`Keyword '${keyword}' deleted.`);
-            // Panggil kedua fungsi fetch untuk memperbarui seluruh UI
             fetchKeywords();
             fetchListings();
         }
         async function triggerScrape() {
-            // ... (Tidak ada perubahan di fungsi ini)
             updateStatus('Manual scraping job started... Refresh data in a moment.');
             await fetch('/api/scrape', { method: 'POST' });
             setTimeout(() => {
                  fetchListings();
                  updateStatus('Scraping finished. Data refreshed.');
-            }, 20000); // Waktu tunggu ditambah jadi 20 detik untuk mengakomodasi 2 situs
+            }, 20000);
         }
         function updateStatus(message) {
             document.getElementById('status').textContent = `Status: ${message} (Last updated: ${new Date().toLocaleTimeString()})`;

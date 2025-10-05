@@ -2,7 +2,7 @@ services:
   - type: web
     name: japan-scraper
     runtime: python
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r requirements.txt" # <-- PASTIKAN INI SATU BARIS
     startCommand: "gunicorn main_app:app"
     envVars:
       - key: TELEGRAM_TOKEN
